@@ -11,6 +11,8 @@ from google.cloud import storage
 from flask import Flask, request, jsonify, render_template, send_file
 from flask_swagger_ui import get_swaggerui_blueprint
 from werkzeug.utils import secure_filename
+from google.cloud import storage
+from google.oauth2 import service_account
 
 # Configuration
 BUCKET_NAME = 'your-bucket-name'
@@ -119,39 +121,41 @@ def upload_to_bucket(blob_name, file_data):
         str: Public URL of the uploaded image
     """
     try:
-        # Validate inputs
-        if not blob_name or not file_data:
-            raise ValueError("Invalid upload parameters")
-        
-        # Initialize storage client
-        storage_client = storage.Client()
-        
-        # Validate bucket exists
-        bucket = storage_client.bucket(BUCKET_NAME)
-        if not bucket.exists():
-            raise ValueError(f"Bucket {BUCKET_NAME} does not exist")
-        
-        # Create blob and upload
-        blob = bucket.blob(blob_name)
-        blob.upload_from_string(
-            file_data, 
-            content_type='image/jpeg',
-            # Optional: Add metadata
-            metadata={
-                'prediction_id': blob_name.split('.')[0],
-                'uploaded_at': datetime.utcnow().isoformat()
-            }
+        # Eksplisit load kredensial dari file JSON
+        credentials = service_account.Credentials.from_service_account_file(
+            '/ser.json'
         )
-        
-        # Make the blob publicly accessible
+
+        # Inisialisasi client storage dengan kredensial
+        storage_client = storage.Client(credentials=credentials)
+
+        # Dapatkan bucket
+        bucket = storage_client.bucket(BUCKET_NAME)
+
+        # Buat blob
+        blob = bucket.blob(blob_name)
+
+        # Upload dengan metadata
+        blob.metadata = {
+            'prediction_id': blob_name.split('.')[0],
+            'uploaded_at': datetime.utcnow().isoformat()
+        }
+
+        # Upload file
+        blob.upload_from_string(
+            file_data,
+            content_type='image/jpeg'
+        )
+
+        # Jadikan publik (opsional)
         blob.make_public()
-        
-        app.logger.info(f"Successfully uploaded {blob_name} to {BUCKET_NAME}")
+
         return blob.public_url
-    
+
     except Exception as e:
-        app.logger.error(f"Upload error: {e}")
+        print(f"Detailed upload error: {e}")
         raise
+
 
 @app.route('/')
 def index():
