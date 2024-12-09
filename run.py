@@ -123,7 +123,7 @@ def upload_to_bucket(blob_name, file_data):
     try:
         # Eksplisit load kredensial dari file JSON
         credentials = service_account.Credentials.from_service_account_file(
-            '/ser.json'
+            'ser.json'
         )
 
         # Inisialisasi client storage dengan kredensial
