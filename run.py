@@ -16,39 +16,62 @@ from werkzeug.utils import secure_filename
 BUCKET_NAME = 'your-bucket-name'
 UPLOAD_FOLDER = 'uploads/'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
-MAX_FILE_SIZE = 1 * 1024 * 1024  # 1MB
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+MODEL_PATH = 'skin_type.pth'  # Added this line to define MODEL_PATH
 
 # Initialize Flask app
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-# Load model globally
-MODEL_PATH = 'skin_type.pth'
+# Global model variable
 model = None
 
 def load_skin_type_model(model_path, num_classes=3):
     """
-    Load the pre-trained skin type classification model
+    Load and customize a pre-trained ResNet model for skin type classification
     
     Args:
         model_path (str): Path to the model weights
         num_classes (int): Number of skin type classes
     
     Returns:
-        torch.nn.Module: Loaded and configured model
+        torch.nn.Module: Configured and loaded model
     """
-    global model
+    # Load pre-trained ResNet50 model
     model = models.resnet50(pretrained=False)
-    num_ftrs = model.fc.in_features
-    model.fc = nn.Linear(num_ftrs, num_classes)
-    state_dict = torch.load(model_path, map_location=torch.device('cpu'))
-    state_dict = {k: v for k, v in state_dict.items() if k in model.state_dict()}
-    model.load_state_dict(state_dict, strict=False)
+    
+    # Freeze base model layers (optional, but can help prevent overfitting)
+    for param in model.parameters():
+        param.requires_grad = False
+    
+    # Modify the final fully connected layer
+    num_features = model.fc.in_features
+    model.fc = nn.Sequential(
+        nn.Dropout(0.5),  # Add dropout for regularization
+        nn.Linear(num_features, num_classes)
+    )
+    
+    # Load the state dictionary
+    try:
+        # Load state dict with CPU mapping and custom logic to handle mismatched keys
+        state_dict = torch.load(model_path, map_location=torch.device('cpu'))
+        
+        # Remove any keys that don't match the current model
+        state_dict = {k: v for k, v in state_dict.items() if k in model.state_dict()}
+        
+        # Partially load the state dict
+        model.load_state_dict(state_dict, strict=False)
+        
+    except Exception as e:
+        print(f"Error loading model weights: {e}")
+        # Reinitialize the final layer if weight loading fails
+        nn.init.xavier_uniform_(model.fc[1].weight)
+        nn.init.zeros_(model.fc[1].bias)
+    
+    # Set the model to evaluation mode
     model.eval()
+    
     return model
-
-# Load the model
-model = load_skin_type_model(MODEL_PATH)
 
 def allowed_file(filename):
     """
@@ -95,11 +118,40 @@ def upload_to_bucket(blob_name, file_data):
     Returns:
         str: Public URL of the uploaded image
     """
-    storage_client = storage.Client()
-    bucket = storage_client.bucket(BUCKET_NAME)
-    blob = bucket.blob(blob_name)
-    blob.upload_from_string(file_data, content_type='image/jpeg')
-    return blob.public_url
+    try:
+        # Validate inputs
+        if not blob_name or not file_data:
+            raise ValueError("Invalid upload parameters")
+        
+        # Initialize storage client
+        storage_client = storage.Client()
+        
+        # Validate bucket exists
+        bucket = storage_client.bucket(BUCKET_NAME)
+        if not bucket.exists():
+            raise ValueError(f"Bucket {BUCKET_NAME} does not exist")
+        
+        # Create blob and upload
+        blob = bucket.blob(blob_name)
+        blob.upload_from_string(
+            file_data, 
+            content_type='image/jpeg',
+            # Optional: Add metadata
+            metadata={
+                'prediction_id': blob_name.split('.')[0],
+                'uploaded_at': datetime.utcnow().isoformat()
+            }
+        )
+        
+        # Make the blob publicly accessible
+        blob.make_public()
+        
+        app.logger.info(f"Successfully uploaded {blob_name} to {BUCKET_NAME}")
+        return blob.public_url
+    
+    except Exception as e:
+        app.logger.error(f"Upload error: {e}")
+        raise
 
 @app.route('/')
 def index():
@@ -153,9 +205,24 @@ def predict():
         }), 400
     
     try:
+        # Generate unique ID
+        prediction_id = str(uuid.uuid4()).replace('-', '_')
+        
         # Read image bytes
         img_bytes = file.read()
         
+        # Create unique filename
+        file_extension = file.filename.split('.')[-1].lower()
+        unique_filename = f"skin_type_prediction_{prediction_id}.{file_extension}"
+        
+      # Upload to Google Cloud Storage
+        try:
+            image_url = upload_to_bucket(unique_filename, img_bytes)
+        except Exception as upload_error:
+            # Log the upload error but don't stop the prediction
+            app.logger.error(f"Image upload failed: {upload_error}")
+            image_url = None
+
         # Preprocess and predict
         input_tensor = preprocess_image(img_bytes)
         with torch.no_grad():
@@ -164,12 +231,9 @@ def predict():
             top_prob, top_classes = torch.topk(probabilities, 1)
         
         # Skin type labels
-        skin_type_labels = ['dry', 'normal', 'oily']
+        skin_type_labels = ['kering', 'normal', 'berminyak']
         predicted_label = skin_type_labels[top_classes[0].item()]
         confidence_score = top_prob[0].item()
-        
-        # Generate unique ID
-        prediction_id = str(uuid.uuid4()).replace('-', '_')
         
         # Prepare response
         response = {
@@ -179,7 +243,8 @@ def predict():
                 "result": predicted_label,
                 "confidenceScore": confidence_score,
                 "isAboveThreshold": confidence_score > 0.5,
-                "createdAt": datetime.utcnow().isoformat() + "Z"
+                "createdAt": datetime.utcnow().isoformat() + "Z",
+                "imageUrl": image_url  # Add image URL to response
             }
         }
         
@@ -204,6 +269,9 @@ swaggerui_blueprint = get_swaggerui_blueprint(
 app.register_blueprint(swaggerui_blueprint, url_prefix=SWAGGER_URL)
 
 if __name__ == '__main__':
+    # Load the model before running the app
+    model = load_skin_type_model(MODEL_PATH)
+    
     # Ensure upload folder exists
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
     
