@@ -234,6 +234,13 @@ def predict():
             probabilities = torch.nn.functional.softmax(outputs, dim=1)
             top_prob, top_classes = torch.topk(probabilities, 1)
         
+        # Skin type descriptions
+        descriptions = {
+            'kering': 'Kulit Anda tergolong kering. Kulit kering cenderung kurang kelembapan sehingga dapat terlihat kasar atau bersisik, serta sering terasa kencang, terutama setelah mencuci wajah. Penting untuk menjaga hidrasi kulit dengan pelembap yang sesuai.',
+            'normal': 'Kulit Anda tergolong normal. Kulit normal memiliki keseimbangan kadar minyak dan kelembapan yang ideal, dengan tekstur yang lembut serta jarang mengalami masalah kulit seperti jerawat atau kemerahan.',
+            'berminyak': 'Kulit Anda tergolong berminyak. Kulit berminyak ditandai dengan produksi sebum (minyak alami kulit) yang berlebihan, yang dapat menyebabkan tampilan mengkilap atau berminyak, terutama di daerah T (dahi, hidung, dan dagu).'
+        }
+
         # Skin type labels
         skin_type_labels = ['kering', 'normal', 'berminyak']
         predicted_label = skin_type_labels[top_classes[0].item()]
@@ -247,8 +254,9 @@ def predict():
                 "result": predicted_label,
                 "confidenceScore": confidence_score,
                 "isAboveThreshold": confidence_score > 0.5,
+                "description": descriptions[predicted_label],  # Added skin type description
                 "createdAt": datetime.utcnow().isoformat() + "Z",
-                "imageUrl": image_url  # Add image URL to response
+                "imageUrl": image_url
             }
         }
         
