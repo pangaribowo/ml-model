@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Skin Type Prediction</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            text-align: center;
+        }
+        .container {
+            background-color: #f4f4f4;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        #imagePreview {
+            max-width: 300px;
+            margin: 20px auto;
+            display: none;
+        }
+        #predictionResult {
+            margin-top: 20px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Skin Type Prediction</h1>
+        <form id="predictionForm" enctype="multipart/form-data">
+            <input type="file" id="fileInput" name="photo" accept=".jpg,.jpeg,.png" required>
+            <img id="imagePreview" src="#" alt="Image Preview">
+            <div id="predictionResult"></div>
+            <button type="submit">Predict Skin Type</button>
+        </form>
+    </div>
+
+    <script>
+        document.getElementById('fileInput').addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            const imagePreview = document.getElementById('imagePreview');
+            
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    imagePreview.src = e.target.result;
+                    imagePreview.style.display = 'block';
+                }
+                reader.readAsDataURL(file);
+            }
+        });
+
+        document.getElementById('predictionForm').addEventListener('submit', async function(event) {
+            event.preventDefault();
+            const formData = new FormData(this);
+            const predictionResult = document.getElementById('predictionResult');
+            
+            try {
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.data) {
+                    predictionResult.innerHTML = `
+                        Skin Type: ${result.data.result}<br>
+                        Confidence: ${(result.data.confidenceScore * 100).toFixed(2)}%<br>
+                        Prediction ID: ${result.data.id}
+                    `;
+                } else {
+                    predictionResult.textContent = result.message || 'Prediction failed';
+                }
+            } catch (error) {
+                predictionResult.textContent = 'An error occurred during prediction';
+                console.error('Error:', error);
+            }
+        });
+    </script>
+</body>
+</html>
