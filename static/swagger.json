@@ -1,0 +1,78 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "title": "Skin Type Prediction API",
+        "version": "1.0.0",
+        "description": "API for predicting skin type from uploaded images"
+    },
+    "host": "localhost:5000",
+    "basePath": "/",
+    "schemes": ["http"],
+    "paths": {
+        "/predict": {
+            "post": {
+                "summary": "Predict Skin Type",
+                "description": "Upload an image to predict skin type",
+                "consumes": ["multipart/form-data"],
+                "parameters": [
+                    {
+                        "name": "photo",
+                        "in": "formData",
+                        "description": "Image file to predict skin type (max 1MB)",
+                        "required": true,
+                        "type": "file"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful prediction",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "message": {"type": "string"},
+                                "data": {
+                                    "type": "object",
+                                    "properties": {
+                                        "id": {"type": "string"},
+                                        "result": {"type": "string"},
+                                        "confidenceScore": {"type": "number"},
+                                        "isAboveThreshold": {"type": "boolean"},
+                                        "createdAt": {"type": "string"}
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request (file not uploaded or invalid)"
+                    },
+                    "500": {
+                        "description": "Server error during prediction"
+                    }
+                }
+            }
+        },
+        "/cache/clear": {
+            "post": {
+                "summary": "Clear Redis Cache",
+                "description": "Removes all entries from the Redis cache",
+                "responses": {
+                    "200": {
+                        "description": "Cache cleared successfully"
+                    }
+                }
+            }
+        },
+        "/cache/info": {
+            "get": {
+                "summary": "Get Cache Information",
+                "description": "Retrieve metadata about the current Redis cache",
+                "responses": {
+                    "200": {
+                        "description": "Cache information retrieved"
+                    }
+                }
+            }
+        }
+    }
+}
