@@ -22,14 +22,14 @@ from google.oauth2 import service_account
 
 # Configuration
 BUCKET_NAME = 'your-bucket-name'
-UPLOAD_FOLDER = 'uploads/'
+# UPLOAD_FOLDER = 'uploads/'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 MODEL_PATH = 'skin_type.pth'
 
 # Initialize Flask app
 app = Flask(__name__)
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+# app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 # Global model and thread pool variables
 model = None
@@ -445,7 +445,7 @@ if __name__ == '__main__':
     model = load_skin_type_model(MODEL_PATH)
     
     # Ensure upload folder exists
-    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+    # os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
     
     # Run the app
     app.run(debug=True, host='0.0.0.0', port=5000)
