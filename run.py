@@ -6,6 +6,7 @@ import threading
 import numpy as np
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
+from dotenv import load_dotenv
 
 import json
 import redis
@@ -30,6 +31,9 @@ BUCKET_NAME = 'your-bucket-name'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 MODEL_PATH = 'skin_type.pth'
+
+# Muat file .env
+load_dotenv()
 
 # Initialize Flask app
 app = Flask(__name__)
